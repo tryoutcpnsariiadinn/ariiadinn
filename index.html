@@ -1,0 +1,1230 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ariiadinn - Simulasi Ujian CPNS/Sekolah Kedinasan</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Alpine.js -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Google Fonts Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        [x-cloak] { display: none !important; }
+        .timer-progress { transition: width 1s linear; }
+        @keyframes pulse-fast {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+        .animate-pulse-fast { animation: pulse-fast 0.8s infinite; }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col font-sans" x-data="quizApp()" x-init="initApp()">
+
+    <!-- NAVIGATION BAR -->
+    <header class="bg-slate-800/95 border-b border-slate-700/80 sticky top-0 z-40 backdrop-blur-md">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <!-- Brand Logo -->
+            <div class="flex items-center gap-3 cursor-pointer" @click="activeView = 'quizzes'">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-amber-500 flex items-center justify-center text-white font-black shadow-lg shadow-blue-500/20">
+                    <i data-lucide="award" class="w-6 h-6"></i>
+                </div>
+                <div>
+                    <div class="flex items-center gap-2">
+                        <h1 class="font-black text-base tracking-tight text-white">ariiadinn</h1>
+                        <span class="px-2 py-0.5 bg-blue-500/20 text-blue-300 border border-blue-500/30 rounded text-[10px] font-bold">Simulasi CAT</span>
+                    </div>
+                    <p class="text-[11px] text-slate-400 hidden sm:block">Simulasi Ujian CPNS/Sekolah Kedinasan (TWK, TIU, TKP)</p>
+                </div>
+            </div>
+
+            <!-- Role Selector & Status -->
+            <div class="flex items-center gap-3">
+                <template x-if="role === 'student'">
+                    <button @click="openAdminModal()" 
+                            class="flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-slate-700/80 hover:bg-slate-700 text-slate-200 border border-slate-600 transition-all shadow-sm">
+                        <i data-lucide="shield-check" class="w-4 h-4 text-amber-400"></i>
+                        <span>Login Admin / Pengawas</span>
+                    </button>
+                </template>
+                <template x-if="role === 'admin'">
+                    <div class="flex items-center gap-2">
+                        <span class="px-3 py-1 rounded-full text-xs font-extrabold bg-amber-500/20 text-amber-300 border border-amber-500/30 flex items-center gap-1.5">
+                            <i data-lucide="shield" class="w-3.5 h-3.5"></i> Admin Mode
+                        </span>
+                        <button @click="role = 'student'; activeView = 'quizzes'" 
+                                class="flex items-center gap-1 px-3 py-1.5 text-xs font-bold text-rose-400 hover:bg-rose-500/10 rounded-xl border border-rose-500/20 transition-all">
+                            <i data-lucide="log-out" class="w-3.5 h-3.5"></i> Keluar Admin
+                        </button>
+                    </div>
+                </template>
+            </div>
+        </div>
+    </header>
+
+    <!-- SUB-NAVIGATION TABS -->
+    <nav class="bg-slate-800/40 border-b border-slate-700/50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex space-x-4 overflow-x-auto">
+            <button @click="activeView = 'quizzes'" 
+                    :class="activeView === 'quizzes' ? 'border-blue-500 text-blue-400 bg-blue-500/10' : 'border-transparent text-slate-400 hover:text-slate-200'"
+                    class="flex items-center gap-2 py-3 px-4 border-b-2 text-xs font-bold whitespace-nowrap transition-all rounded-t-xl">
+                <i data-lucide="layers" class="w-4 h-4"></i>
+                <span>Daftar Ujian (10 Soal)</span>
+                <span class="px-2 py-0.5 text-[10px] bg-slate-700 text-slate-300 rounded-full" x-text="quizzes.length"></span>
+            </button>
+
+            <template x-if="role === 'admin'">
+                <div class="flex space-x-4">
+                    <button @click="activeView = 'rekap'" 
+                            :class="activeView === 'rekap' ? 'border-amber-500 text-amber-400 bg-amber-500/10' : 'border-transparent text-slate-400 hover:text-slate-200'"
+                            class="flex items-center gap-2 py-3 px-4 border-b-2 text-xs font-bold whitespace-nowrap transition-all rounded-t-xl">
+                        <i data-lucide="bar-chart-3" class="w-4 h-4"></i>
+                        <span>Rekap Hasil Peserta</span>
+                        <span class="px-2 py-0.5 text-[10px] bg-slate-700 text-slate-300 rounded-full" x-text="submissions.length"></span>
+                    </button>
+
+                    <button @click="activeView = 'builder'" 
+                            :class="activeView === 'builder' ? 'border-emerald-500 text-emerald-400 bg-emerald-500/10' : 'border-transparent text-slate-400 hover:text-slate-200'"
+                            class="flex items-center gap-2 py-3 px-4 border-b-2 text-xs font-bold whitespace-nowrap transition-all rounded-t-xl">
+                        <i data-lucide="file-plus-2" class="w-4 h-4"></i>
+                        <span>Kelola Soal Gambar & Kuis</span>
+                    </button>
+                </div>
+            </template>
+        </div>
+    </nav>
+
+    <!-- MAIN CONTENT AREA -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-grow w-full">
+
+        <!-- VIEW 1: QUIZ LIST (STUDENT / PUBLIC HUB) -->
+        <section x-show="activeView === 'quizzes'" x-cloak>
+            
+            <!-- Welcome Info Banner -->
+            <div class="mb-8 p-6 bg-gradient-to-r from-blue-950 via-slate-800 to-indigo-950 border border-blue-800/40 rounded-2xl shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+                <div class="space-y-2">
+                    <div class="flex items-center gap-2 text-amber-400 text-xs font-bold uppercase tracking-wider">
+                        <i data-lucide="clock" class="w-4 h-4"></i>
+                        <span>Timer Mundur 50 Detik per Soal</span>
+                    </div>
+                    <h2 class="text-2xl font-black text-white">Simulasi Ujian CPNS/Sekolah Kedinasan</h2>
+                    <p class="text-slate-300 text-xs max-w-2xl leading-relaxed">
+                        Pilih modul latihan <strong class="text-blue-300">TWK</strong>, <strong class="text-emerald-300">TIU (Termasuk Figural/Gambar)</strong>, atau <strong class="text-purple-300">TKP</strong>.
+                        Masing-masing kuis berisi <strong>10 Soal</strong>. Setelah selesai, perolehan nilai murni, kunci jawaban, serta **Pembahasan Video YouTube** akan ditampilkan.
+                    </p>
+                </div>
+
+                <div class="bg-slate-900/80 p-4 rounded-xl border border-slate-700/80 shrink-0 w-full md:w-auto text-xs">
+                    <div class="font-bold text-slate-300 mb-2 flex items-center gap-1.5">
+                        <i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-400"></i> Ketentuan Simulasi:
+                    </div>
+                    <ul class="space-y-1 text-slate-400 font-medium">
+                        <li>• Isian data singkat: Nama & Asal Kab/Kota</li>
+                        <li>• Timer 50s mundur per soal (beralih otomatis)</li>
+                        <li>• Mendukung Soal & Jawaban Berbentuk Gambar</li>
+                        <li>• Hasil skor murni & pembahasan video Youtube</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Filters & Search -->
+            <div class="flex flex-col md:flex-row justify-between items-stretch md:items-center gap-4 mb-6">
+                <!-- Category Buttons -->
+                <div class="flex items-center gap-2 overflow-x-auto pb-2 md:pb-0">
+                    <button @click="selectedCategory = 'ALL'" 
+                            :class="selectedCategory === 'ALL' ? 'bg-blue-600 text-white font-bold' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'"
+                            class="px-4 py-2 rounded-xl text-xs transition-all border border-slate-700 whitespace-nowrap">
+                        Semua Kategori
+                    </button>
+                    <button @click="selectedCategory = 'TWK'" 
+                            :class="selectedCategory === 'TWK' ? 'bg-blue-600 text-white font-bold' : 'bg-slate-800 text-blue-400 hover:bg-slate-700'"
+                            class="px-4 py-2 rounded-xl text-xs transition-all border border-blue-500/30 whitespace-nowrap flex items-center gap-1.5">
+                        <i data-lucide="flag" class="w-3.5 h-3.5"></i> TWK
+                    </button>
+                    <button @click="selectedCategory = 'TIU'" 
+                            :class="selectedCategory === 'TIU' ? 'bg-emerald-600 text-white font-bold' : 'bg-slate-800 text-emerald-400 hover:bg-slate-700'"
+                            class="px-4 py-2 rounded-xl text-xs transition-all border border-emerald-500/30 whitespace-nowrap flex items-center gap-1.5">
+                        <i data-lucide="brain" class="w-3.5 h-3.5"></i> TIU
+                    </button>
+                    <button @click="selectedCategory = 'TKP'" 
+                            :class="selectedCategory === 'TKP' ? 'bg-purple-600 text-white font-bold' : 'bg-slate-800 text-purple-400 hover:bg-slate-700'"
+                            class="px-4 py-2 rounded-xl text-xs transition-all border border-purple-500/30 whitespace-nowrap flex items-center gap-1.5">
+                        <i data-lucide="smile" class="w-3.5 h-3.5"></i> TKP
+                    </button>
+                </div>
+
+                <!-- Search Input -->
+                <div class="relative w-full md:w-72">
+                    <i data-lucide="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                    <input type="text" x-model="searchQuery" placeholder="Cari materi ujian..." 
+                           class="w-full pl-9 pr-4 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-blue-500">
+                </div>
+            </div>
+
+            <!-- Quiz Grid -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <template x-for="quiz in filteredQuizzes" :key="quiz.id">
+                    <div class="bg-slate-800/90 border border-slate-700/80 rounded-2xl hover:border-blue-500/50 transition-all duration-300 flex flex-col justify-between overflow-hidden group shadow-lg">
+                        <div class="p-6">
+                            <div class="flex items-center justify-between gap-2 mb-3">
+                                <span :class="getCategoryBadgeStyle(quiz.category)"
+                                      class="px-3 py-1 text-xs font-black rounded-lg border uppercase tracking-wider flex items-center gap-1">
+                                    <i data-lucide="bookmark" class="w-3 h-3"></i>
+                                    <span x-text="quiz.category"></span>
+                                </span>
+
+                                <span class="px-2.5 py-1 bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[11px] font-bold rounded-lg flex items-center gap-1">
+                                    <i data-lucide="timer" class="w-3.5 h-3.5"></i>
+                                    <span>50s / Soal</span>
+                                </span>
+                            </div>
+
+                            <h3 class="font-bold text-white text-base mb-2 group-hover:text-blue-400 transition-colors" x-text="quiz.title"></h3>
+                            <p class="text-slate-400 text-xs mb-4 line-clamp-2 leading-relaxed" x-text="quiz.description"></p>
+
+                            <div class="space-y-1.5 pt-3 border-t border-slate-700/50 text-xs text-slate-400">
+                                <div class="flex justify-between">
+                                    <span>Jumlah Soal:</span>
+                                    <strong class="text-slate-200" x-text="(quiz.questions?.length || 0) + ' Soal'"></strong>
+                                </div>
+                                <div class="flex justify-between items-center">
+                                    <span>Pembahasan Youtube:</span>
+                                    <template x-if="quiz.youtubeUrl">
+                                        <span class="text-rose-400 font-bold flex items-center gap-1">
+                                            <i data-lucide="youtube" class="w-3.5 h-3.5"></i> Tersedia
+                                        </span>
+                                    </template>
+                                    <template x-if="!quiz.youtubeUrl">
+                                        <span class="text-slate-500">N/A</span>
+                                    </template>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Action Footer -->
+                        <div class="p-4 bg-slate-900/60 border-t border-slate-700/50 flex items-center gap-2">
+                            <button @click="startQuiz(quiz)" 
+                                    class="w-full py-2.5 px-4 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-2 shadow-md shadow-blue-900/30">
+                                <i data-lucide="play-circle" class="w-4 h-4"></i>
+                                <span>Mulai Ujian Sekarang</span>
+                            </button>
+                        </div>
+                    </div>
+                </template>
+            </div>
+
+            <template x-if="filteredQuizzes.length === 0">
+                <div class="text-center py-16 bg-slate-800/40 rounded-2xl border border-dashed border-slate-700">
+                    <i data-lucide="search-x" class="w-12 h-12 text-slate-500 mx-auto mb-3"></i>
+                    <h3 class="text-sm font-semibold text-slate-300">Modul Ujian Tidak Ditemukan</h3>
+                    <p class="text-xs text-slate-500 mt-1">Coba kata kunci lain atau minta admin menambahkan kuis baru.</p>
+                </div>
+            </template>
+        </section>
+
+        <!-- VIEW 2: ACTIVE QUIZ RUNNER (50s TIMER PER QUESTION) -->
+        <section x-show="activeView === 'runner'" x-cloak class="max-w-3xl mx-auto">
+            
+            <!-- STEP 1: IDENTITY FORM (Nama & Asal Kab/Kota Only) -->
+            <template x-if="runnerStep === 'IDENTITY'">
+                <div class="bg-slate-800/90 border border-slate-700/80 rounded-2xl p-6 sm:p-8 shadow-2xl space-y-6">
+                    <div class="border-b border-slate-700/80 pb-5">
+                        <span :class="getCategoryBadgeStyle(activeQuiz?.category)" class="px-2.5 py-0.5 rounded text-[10px] font-black uppercase" x-text="activeQuiz?.category"></span>
+                        <h2 class="text-xl sm:text-2xl font-black text-white mt-2" x-text="activeQuiz?.title"></h2>
+                        <p class="text-slate-400 text-xs mt-1" x-text="activeQuiz?.description"></p>
+                    </div>
+
+                    <div class="p-4 bg-amber-500/10 border border-amber-500/20 rounded-xl text-amber-300 text-xs space-y-1">
+                        <div class="font-bold flex items-center gap-1.5 text-amber-400">
+                            <i data-lucide="alert-circle" class="w-4 h-4"></i> Petunjuk Aturan Ujian:
+                        </div>
+                        <p>1. Setiap soal diberi <strong class="text-white">waktu 50 detik</strong> secara otomatis.</p>
+                        <p>2. Jika waktu 50 detik habis, jawaban tersimpan & otomatis lanjut ke nomor berikutnya.</p>
+                        <p>3. Di akhir ujian, perolehan nilai murni dan pembahasan video Youtube akan ditampilkan.</p>
+                    </div>
+
+                    <div class="space-y-4 pt-2">
+                        <h3 class="text-sm font-bold text-slate-200 border-l-4 border-blue-500 pl-3">Identitas Peserta Ujian</h3>
+                        
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-300 mb-1.5">Nama Lengkap *</label>
+                            <input type="text" x-model="studentForm.name" placeholder="Contoh: Muhammad Rizky" 
+                                   class="w-full px-4 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-blue-500">
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-300 mb-1.5">Asal Kabupaten/Kota *</label>
+                            <input type="text" x-model="studentForm.kabupaten" placeholder="Contoh: Kab. Kediri / Kota Surabaya" 
+                                   class="w-full px-4 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-xs text-slate-200 focus:outline-none focus:border-blue-500">
+                        </div>
+                    </div>
+
+                    <div class="pt-4 flex items-center justify-between border-t border-slate-700/80">
+                        <button @click="activeView = 'quizzes'" class="px-4 py-2 text-xs text-slate-400 hover:text-white font-medium">
+                            &larr; Batal & Kembali
+                        </button>
+                        <button @click="startQuestionTimer()" 
+                                :disabled="!studentForm.name || !studentForm.kabupaten"
+                                class="px-6 py-3 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-bold text-xs rounded-xl shadow-lg transition-all flex items-center gap-2">
+                            <span>Mulai Soal 1 (50s)</span>
+                            <i data-lucide="arrow-right" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                </div>
+            </template>
+
+            <!-- STEP 2: ACTIVE QUESTION RUNNER (Supports Question & Option Images) -->
+            <template x-if="runnerStep === 'TESTING'">
+                <div class="bg-slate-800/95 border border-slate-700/80 rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+                    
+                    <!-- Header Bar & 50s Timer Bar -->
+                    <div class="p-5 bg-slate-900 border-b border-slate-700/80 space-y-3">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <span class="text-xs font-bold text-blue-400" x-text="'Soal ' + (currentQuestionIndex + 1) + ' dari ' + activeQuiz.questions.length"></span>
+                                <h3 class="text-sm font-bold text-slate-200" x-text="activeQuiz.title"></h3>
+                            </div>
+
+                            <!-- 50 Seconds Countdown Timer Display -->
+                            <div class="px-3.5 py-1.5 rounded-xl border flex items-center gap-2 font-mono font-extrabold text-sm shadow-inner"
+                                 :class="questionTimerSeconds <= 10 ? 'bg-rose-950/50 border-rose-500 text-rose-400 animate-pulse-fast' : 'bg-slate-800 border-amber-500/40 text-amber-400'">
+                                <i data-lucide="alarm-clock" class="w-4 h-4"></i>
+                                <span x-text="questionTimerSeconds + 's'"></span>
+                            </div>
+                        </div>
+
+                        <!-- Progress Bar 50s -->
+                        <div class="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
+                            <div class="timer-progress h-full" 
+                                 :style="'width: ' + ((questionTimerSeconds / 50) * 100) + '%'"
+                                 :class="questionTimerSeconds <= 10 ? 'bg-rose-500' : 'bg-amber-400'">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Question Content Card -->
+                    <div class="p-6 sm:p-8 space-y-6">
+                        
+                        <!-- Question Text -->
+                        <div class="text-sm sm:text-base font-semibold text-slate-100 leading-relaxed" x-text="currentQuestion.text"></div>
+
+                        <!-- Question Image Render (if available) -->
+                        <template x-if="currentQuestion.image">
+                            <div class="p-3 bg-slate-900 border border-slate-700 rounded-2xl flex justify-center items-center overflow-hidden">
+                                <img :src="currentQuestion.image" alt="Soal Gambar" class="max-h-72 object-contain rounded-xl shadow-md">
+                            </div>
+                        </template>
+
+                        <!-- Options A - E (Supports Text & Image Choices) -->
+                        <div class="space-y-3">
+                            <template x-for="(opt, optIdx) in currentQuestion.options" :key="optIdx">
+                                <label @click="selectOption(optIdx)" 
+                                       :class="userAnswers[currentQuestionIndex] === optIdx ? 'bg-blue-600/20 border-blue-500 text-blue-200 ring-1 ring-blue-500' : 'bg-slate-900/70 border-slate-700 text-slate-300 hover:border-slate-600'"
+                                       class="flex items-start gap-3.5 p-3.5 rounded-xl border cursor-pointer transition-all text-xs sm:text-sm font-medium">
+                                    <div class="w-6 h-6 rounded-full border border-slate-500 flex items-center justify-center shrink-0 mt-0.5"
+                                         :class="userAnswers[currentQuestionIndex] === optIdx ? 'border-blue-400 bg-blue-500 text-white font-bold' : ''">
+                                        <span x-text="String.fromCharCode(65 + optIdx)"></span>
+                                    </div>
+                                    <div class="flex-grow space-y-2 pt-0.5">
+                                        <!-- Option Text -->
+                                        <div x-text="opt"></div>
+                                        <!-- Option Image (if available) -->
+                                        <template x-if="currentQuestion.optionImages && currentQuestion.optionImages[optIdx]">
+                                            <div class="p-2 bg-slate-800 rounded-lg border border-slate-700 inline-block">
+                                                <img :src="currentQuestion.optionImages[optIdx]" alt="Pilihan Gambar" class="max-h-32 object-contain rounded">
+                                            </div>
+                                        </template>
+                                    </div>
+                                </label>
+                            </template>
+                        </div>
+                    </div>
+
+                    <!-- Runner Navigation Footer -->
+                    <div class="p-4 bg-slate-900 border-t border-slate-700/80 flex items-center justify-between">
+                        <span class="text-xs text-slate-400 font-medium" x-text="'Peserta: ' + studentForm.name + ' (' + studentForm.kabupaten + ')'"></span>
+
+                        <div class="flex items-center gap-2">
+                            <template x-if="currentQuestionIndex < activeQuiz.questions.length - 1">
+                                <button @click="nextQuestion()" class="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center gap-1.5">
+                                    <span>Soal Berikutnya</span>
+                                    <i data-lucide="chevron-right" class="w-4 h-4"></i>
+                                </button>
+                            </template>
+
+                            <template x-if="currentQuestionIndex === activeQuiz.questions.length - 1">
+                                <button @click="finishQuizSession()" class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center gap-1.5">
+                                    <i data-lucide="check-circle" class="w-4 h-4"></i>
+                                    <span>Kumpulkan & Lihat Hasil</span>
+                                </button>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+            </template>
+
+            <!-- STEP 3: RESULT & YOUTUBE DISCUSSION -->
+            <template x-if="runnerStep === 'RESULT'">
+                <div class="bg-slate-800/90 border border-slate-700/80 rounded-2xl p-6 sm:p-8 shadow-2xl space-y-8">
+                    
+                    <!-- Result Badge Banner -->
+                    <div class="text-center p-6 bg-slate-900/90 rounded-2xl border border-slate-700/80 space-y-3">
+                        <div class="w-16 h-16 bg-blue-500/20 text-blue-400 border border-blue-500/30 rounded-full mx-auto flex items-center justify-center shadow-xl">
+                            <i data-lucide="award" class="w-8 h-8"></i>
+                        </div>
+
+                        <div>
+                            <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Hasil Nilai Ujian Anda</span>
+                            <div class="text-4xl font-black text-white mt-1" x-text="latestScore + ' / 100'"></div>
+                            <p class="text-xs font-medium text-slate-400 mt-1">Sesi Ujian Selesai Dikerjakan.</p>
+                        </div>
+
+                        <div class="pt-2 text-xs text-slate-400 grid grid-cols-2 gap-2 border-t border-slate-800 max-w-sm mx-auto">
+                            <div>Nama: <strong class="text-slate-200" x-text="studentForm.name"></strong></div>
+                            <div>Kab/Kota: <strong class="text-slate-200" x-text="studentForm.kabupaten"></strong></div>
+                        </div>
+                    </div>
+
+                    <!-- YOUTUBE DISCUSSION LINK & EMBED CARD -->
+                    <template x-if="activeQuiz?.youtubeUrl">
+                        <div class="p-5 bg-gradient-to-r from-rose-950/40 via-slate-900 to-slate-900 border border-rose-500/30 rounded-2xl space-y-4">
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center gap-2 text-rose-400 font-bold text-sm">
+                                    <i data-lucide="youtube" class="w-5 h-5"></i>
+                                    <span>Video Pembahasan Soal Youtube</span>
+                                </div>
+                                <a :href="activeQuiz.youtubeUrl" target="_blank" 
+                                   class="px-3 py-1.5 bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs rounded-xl flex items-center gap-1 shadow-md transition-all">
+                                    <span>Buka di Youtube</span>
+                                    <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
+                                </a>
+                            </div>
+                            <p class="text-xs text-slate-300">Tonton pembahasan lengkap untuk mempelajari trik pengerjaan cepat soal kuis ini.</p>
+                            
+                            <!-- YouTube Embed if Valid ID -->
+                            <template x-if="getYoutubeEmbedUrl(activeQuiz.youtubeUrl)">
+                                <div class="aspect-video w-full rounded-xl overflow-hidden border border-slate-700 shadow-lg">
+                                    <iframe class="w-full h-full" :src="getYoutubeEmbedUrl(activeQuiz.youtubeUrl)" allowfullscreen></iframe>
+                                </div>
+                            </template>
+                        </div>
+                    </template>
+
+                    <!-- ANSWER REVIEW -->
+                    <div class="space-y-4">
+                        <h3 class="text-sm font-bold text-slate-200 border-l-4 border-amber-500 pl-3">Rangkuman Jawaban & Pembahasan</h3>
+
+                        <div class="space-y-4">
+                            <template x-for="(q, idx) in activeQuiz.questions" :key="idx">
+                                <div class="bg-slate-900/80 p-4 rounded-xl border space-y-3 text-xs"
+                                     :class="userAnswers[idx] === q.correctAnswer ? 'border-emerald-500/40' : 'border-rose-500/40'">
+                                    <div class="flex justify-between items-start gap-2">
+                                        <p class="font-bold text-slate-200" x-text="(idx + 1) + '. ' + q.text"></p>
+                                        <span class="px-2 py-0.5 rounded text-[10px] font-black shrink-0"
+                                              :class="userAnswers[idx] === q.correctAnswer ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'"
+                                              x-text="userAnswers[idx] === q.correctAnswer ? 'BENAR (+10)' : 'SALAH (0)'">
+                                        </span>
+                                    </div>
+
+                                    <!-- Render Image in Answer Review -->
+                                    <template x-if="q.image">
+                                        <div class="p-2 bg-slate-950 border border-slate-800 rounded-lg inline-block">
+                                            <img :src="q.image" alt="Gambar Soal" class="max-h-36 object-contain rounded">
+                                        </div>
+                                    </template>
+
+                                    <div class="text-slate-400 space-y-1">
+                                        <div>Jawaban Anda: <strong :class="userAnswers[idx] === q.correctAnswer ? 'text-emerald-400' : 'text-rose-400'" x-text="userAnswers[idx] !== undefined ? String.fromCharCode(65 + userAnswers[idx]) + '. ' + q.options[userAnswers[idx]] : 'Tidak Dijawab'"></strong></div>
+                                        <div>Kunci Jawaban: <strong class="text-emerald-400" x-text="String.fromCharCode(65 + q.correctAnswer) + '. ' + q.options[q.correctAnswer]"></strong></div>
+                                    </div>
+
+                                    <div class="pt-2 border-t border-slate-800 text-slate-300 italic">
+                                        <span class="font-bold text-amber-400 not-italic">Penjelasan: </span>
+                                        <span x-text="q.explanation || 'Tidak ada penjelasan khusus.'"></span>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+
+                    <!-- Return Button -->
+                    <div class="pt-4 border-t border-slate-700/80 text-center">
+                        <button @click="activeView = 'quizzes'" class="px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-xl shadow-lg transition-all">
+                            Selesai & Kembali ke Daftar Ujian
+                        </button>
+                    </div>
+                </div>
+            </template>
+        </section>
+
+        <!-- VIEW 3: ADMIN REKAP TABLE (ADMIN ONLY) -->
+        <section x-show="activeView === 'rekap' && role === 'admin'" x-cloak>
+            <div class="bg-slate-800/90 rounded-2xl border border-slate-700/80 p-6 shadow-xl mb-6">
+                <div class="flex flex-col md:flex-row justify-between items-stretch md:items-center gap-4 mb-6">
+                    <div>
+                        <h2 class="text-xl font-black text-white">Rekapitulasi Nilai Peserta Ujian</h2>
+                        <p class="text-xs text-slate-400">Data pengerjaan peserta dari simulasi Ujian CPNS/Sekolah Kedinasan.</p>
+                    </div>
+
+                    <div class="flex items-center gap-2">
+                        <button @click="exportCSV()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-md flex items-center gap-1.5 transition-all">
+                            <i data-lucide="download" class="w-4 h-4"></i>
+                            <span>Export Excel / CSV</span>
+                        </button>
+                        <button @click="clearSubmissions()" title="Reset Data Rekap" class="px-3 py-2 bg-rose-600/20 hover:bg-rose-600 text-rose-400 hover:text-white border border-rose-500/30 font-bold text-xs rounded-xl transition-colors">
+                            <i data-lucide="trash-2" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Table Search Filter -->
+                <div class="flex flex-col sm:flex-row gap-3 mb-4">
+                    <div class="relative flex-grow">
+                        <i data-lucide="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                        <input type="text" x-model="searchRekap" placeholder="Cari nama atau asal kabupaten/kota..." 
+                               class="w-full pl-9 pr-4 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-slate-200 placeholder-slate-500 focus:outline-none">
+                    </div>
+                    <select x-model="filterRekapCat" class="px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-slate-300">
+                        <option value="ALL">Semua Kategori</option>
+                        <option value="TWK">TWK</option>
+                        <option value="TIU">TIU</option>
+                        <option value="TKP">TKP</option>
+                    </select>
+                </div>
+
+                <!-- Rekap Table -->
+                <div class="overflow-x-auto rounded-xl border border-slate-700/80">
+                    <table class="w-full text-left text-xs">
+                        <thead class="bg-slate-900 text-slate-400 font-bold uppercase tracking-wider">
+                            <tr>
+                                <th class="py-3.5 px-4">Nama Peserta</th>
+                                <th class="py-3.5 px-4">Asal Kabupaten/Kota</th>
+                                <th class="py-3.5 px-4">Modul Ujian</th>
+                                <th class="py-3.5 px-4 text-center">Skor / 100</th>
+                                <th class="py-3.5 px-4">Waktu Selesai</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-700/50 text-slate-200">
+                            <template x-for="s in filteredSubmissions" :key="s.id">
+                                <tr class="hover:bg-slate-700/40 transition-colors">
+                                    <td class="py-3.5 px-4 font-bold text-white" x-text="s.studentName"></td>
+                                    <td class="py-3.5 px-4 text-slate-300" x-text="s.kabupaten"></td>
+                                    <td class="py-3.5 px-4 font-semibold text-blue-400" x-text="s.quizTitle"></td>
+                                    <td class="py-3.5 px-4 text-center font-black text-amber-400 text-sm" x-text="s.score"></td>
+                                    <td class="py-3.5 px-4 text-slate-400 text-[11px]" x-text="s.completedAt"></td>
+                                </tr>
+                            </template>
+                        </tbody>
+                    </table>
+                </div>
+
+                <template x-if="filteredSubmissions.length === 0">
+                    <div class="text-center py-10 text-slate-500 text-xs">
+                        Belum ada data rekap nilai pengerjaan.
+                    </div>
+                </template>
+            </div>
+        </section>
+
+        <!-- VIEW 4: ADMIN QUIZ & QUESTION BUILDER (IMAGE SUPPORT) -->
+        <section x-show="activeView === 'builder' && role === 'admin'" x-cloak class="space-y-6">
+            
+            <div class="flex items-center justify-between">
+                <div>
+                    <h2 class="text-xl font-black text-white">Editor Pengelola Ujian & Soal Gambar</h2>
+                    <p class="text-xs text-slate-400">Tambah/Edit modul ujian, unggah soal berbentuk gambar, pilihan gambar, kunci jawaban, & link YouTube.</p>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button @click="resetToDefaultQuizzes()" class="px-3.5 py-2.5 bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-bold rounded-xl border border-slate-600">
+                        Reset Modul Bawaan
+                    </button>
+                    <button @click="openQuizEditor()" class="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-md flex items-center gap-1.5">
+                        <i data-lucide="plus-circle" class="w-4 h-4"></i>
+                        <span>Buat Paket Ujian Baru</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Quiz List for Editing -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <template x-for="q in quizzes" :key="q.id">
+                    <div class="bg-slate-800/90 border border-slate-700/80 rounded-2xl p-6 shadow-xl space-y-4">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <span :class="getCategoryBadgeStyle(q.category)" class="px-2.5 py-0.5 rounded text-[10px] font-black uppercase" x-text="q.category"></span>
+                                <h3 class="font-bold text-white text-base mt-1" x-text="q.title"></h3>
+                            </div>
+                            <div class="flex items-center gap-1">
+                                <button @click="openQuizEditor(q)" title="Edit Kuis & Soal Gambar" class="p-2 bg-slate-700 hover:bg-amber-500 hover:text-slate-950 text-slate-200 rounded-xl transition-all">
+                                    <i data-lucide="edit-3" class="w-4 h-4"></i>
+                                </button>
+                                <button @click="deleteQuiz(q.id)" title="Hapus Kuis" class="p-2 bg-slate-700 hover:bg-rose-600 text-slate-200 rounded-xl transition-all">
+                                    <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <p class="text-xs text-slate-400 line-clamp-2" x-text="q.description"></p>
+
+                        <div class="p-3 bg-slate-900/80 rounded-xl border border-slate-700/60 text-xs space-y-1.5 text-slate-300">
+                            <div class="flex justify-between">
+                                <span>Jumlah Soal:</span>
+                                <strong class="text-amber-400" x-text="(q.questions?.length || 0) + ' Soal'"></strong>
+                            </div>
+                            <div class="flex justify-between truncate">
+                                <span>Youtube Link:</span>
+                                <strong class="text-rose-400 truncate max-w-[180px]" x-text="q.youtubeUrl || 'Belum diisi'"></strong>
+                            </div>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- MODAL 1: ADMIN LOGIN MODAL -->
+    <div x-show="showAdminModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4 z-50" x-cloak>
+        <div class="bg-slate-800 border border-slate-700 rounded-2xl p-6 w-full max-w-sm shadow-2xl space-y-4">
+            <div class="text-center">
+                <div class="w-12 h-12 bg-amber-500/20 text-amber-400 border border-amber-500/30 rounded-2xl flex items-center justify-center mx-auto mb-2">
+                    <i data-lucide="lock" class="w-6 h-6"></i>
+                </div>
+                <h3 class="text-base font-bold text-white">Login Admin / Pengawas</h3>
+                <p class="text-xs text-slate-400">Default Password: <strong class="text-amber-400">admin123</strong></p>
+            </div>
+
+            <form @submit.prevent="authAdmin()">
+                <input type="password" x-model="adminPinInput" placeholder="Masukkan Password Admin" 
+                       class="w-full px-4 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-xs text-slate-200 focus:outline-none mb-3">
+                
+                <template x-if="authError">
+                    <p class="text-xs text-rose-400 mb-3 font-semibold text-center">Password Salah! Gunakan admin123</p>
+                </template>
+
+                <div class="flex justify-end gap-2">
+                    <button type="button" @click="showAdminModal = false" class="px-3.5 py-2 text-xs text-slate-400">Batal</button>
+                    <button type="submit" class="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl">Login</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL 2: FULL QUIZ & QUESTION EDITOR MODAL (WITH IMAGE UPLOAD/URL) -->
+    <div x-show="showEditorModal" class="fixed inset-0 bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4 z-50 overflow-y-auto" x-cloak>
+        <div class="bg-slate-800 border border-slate-700 rounded-2xl p-6 sm:p-8 w-full max-w-4xl shadow-2xl space-y-6 max-h-[90vh] overflow-y-auto my-auto">
+            
+            <div class="flex justify-between items-center border-b border-slate-700 pb-4">
+                <h3 class="text-lg font-black text-white" x-text="editingQuizId ? 'Edit Paket Ujian & Soal Gambar' : 'Buat Paket Ujian Baru'"></h3>
+                <button @click="showEditorModal = false" class="text-slate-400 hover:text-white">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <!-- Quiz Meta Form -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 bg-slate-900/60 p-4 rounded-xl border border-slate-700/60">
+                <div class="md:col-span-2">
+                    <label class="block text-xs font-semibold text-slate-300 mb-1">Judul Ujian *</label>
+                    <input type="text" x-model="editForm.title" placeholder="Latihan TWK/TIU Paket Gambar" class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-slate-200">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1">Kategori CPNS *</label>
+                    <select x-model="editForm.category" class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-slate-200">
+                        <option value="TWK">TWK (Wawasan Bangsa)</option>
+                        <option value="TIU">TIU (Intelegensi / Figural Gambar)</option>
+                        <option value="TKP">TKP (Kepribadian)</option>
+                    </select>
+                </div>
+
+                <div class="md:col-span-3">
+                    <label class="block text-xs font-semibold text-slate-300 mb-1">Link Video Youtube Pembahasan *</label>
+                    <input type="url" x-model="editForm.youtubeUrl" placeholder="https://www.youtube.com/watch?v=..." class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-slate-200">
+                </div>
+
+                <div class="md:col-span-3">
+                    <label class="block text-xs font-semibold text-slate-300 mb-1">Deskripsi Ringkas</label>
+                    <input type="text" x-model="editForm.description" placeholder="Deskripsi materi..." class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-slate-200">
+                </div>
+            </div>
+
+            <!-- QUESTIONS BUILDER LIST (Target: 10 Questions, Image Supported) -->
+            <div class="space-y-4">
+                <div class="flex items-center justify-between">
+                    <h4 class="text-sm font-bold text-amber-400">Daftar Soal Latihan (<span x-text="editForm.questions.length"></span>/10 Soal)</h4>
+                    <button @click="addQuestionToForm()" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-xl flex items-center gap-1">
+                        <i data-lucide="plus" class="w-3.5 h-3.5"></i> Tambah Soal
+                    </button>
+                </div>
+
+                <div class="space-y-6">
+                    <template x-for="(q, qIdx) in editForm.questions" :key="qIdx">
+                        <div class="bg-slate-900 p-5 rounded-xl border border-slate-700/80 space-y-4">
+                            <div class="flex justify-between items-center">
+                                <span class="font-black text-xs text-blue-400" x-text="'Soal Nomor ' + (qIdx + 1)"></span>
+                                <button @click="removeQuestionFromForm(qIdx)" class="text-rose-400 hover:underline text-xs">Hapus Soal</button>
+                            </div>
+
+                            <div>
+                                <label class="block text-[11px] font-semibold text-slate-400 mb-1">Teks Pertanyaan Soal</label>
+                                <textarea x-model="q.text" rows="2" class="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-slate-100"></textarea>
+                            </div>
+
+                            <!-- QUESTION IMAGE UPLOAD / URL -->
+                            <div class="p-3 bg-slate-950/80 rounded-xl border border-slate-800 space-y-2">
+                                <label class="block text-[11px] font-bold text-amber-400 flex items-center gap-1.5">
+                                    <i data-lucide="image" class="w-3.5 h-3.5"></i> Gambar Soal (Opsional):
+                                </label>
+                                <div class="flex flex-col sm:flex-row gap-2 items-center">
+                                    <input type="text" x-model="q.image" placeholder="URL Gambar (misal: https://...)" class="w-full px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-xl text-xs text-slate-200">
+                                    <span class="text-[10px] text-slate-500 font-bold">atau</span>
+                                    <input type="file" accept="image/*" @change="uploadQuestionImage($event, q)" class="text-xs text-slate-400 file:mr-2 file:py-1 file:px-3 file:rounded-xl file:border-0 file:bg-slate-700 file:text-slate-200 hover:file:bg-slate-600">
+                                </div>
+                                <template x-if="q.image">
+                                    <div class="pt-2 flex items-center gap-3">
+                                        <img :src="q.image" alt="Preview Gambar Soal" class="h-16 rounded border border-slate-700 object-contain bg-slate-900">
+                                        <button @click="q.image = ''" class="text-xs text-rose-400 hover:underline">Hapus Gambar</button>
+                                    </div>
+                                </template>
+                            </div>
+
+                            <!-- Options A - E Inputs (With Image Support per Option) -->
+                            <div class="grid grid-cols-1 gap-3">
+                                <template x-for="(opt, oIdx) in q.options" :key="oIdx">
+                                    <div class="p-3 bg-slate-800/80 rounded-xl border border-slate-700/80 space-y-2">
+                                        <div class="flex justify-between items-center">
+                                            <label class="text-[11px] font-bold text-slate-300" x-text="'Pilihan ' + String.fromCharCode(65 + oIdx)"></label>
+                                        </div>
+                                        <input type="text" x-model="q.options[oIdx]" placeholder="Teks Pilihan..." class="w-full px-3 py-1.5 bg-slate-900 border border-slate-700 rounded-xl text-xs text-slate-200">
+                                        
+                                        <!-- Option Image Upload/URL -->
+                                        <div class="flex flex-col sm:flex-row gap-2 items-center">
+                                            <input type="text" 
+                                                   x-model="q.optionImages[oIdx]" 
+                                                   placeholder="URL Gambar Pilihan (Opsional)..." 
+                                                   class="w-full px-3 py-1 bg-slate-900 border border-slate-700 rounded-lg text-[11px] text-slate-300">
+                                            <input type="file" accept="image/*" @change="uploadOptionImage($event, q, oIdx)" class="text-[10px] text-slate-400 file:mr-2 file:py-0.5 file:px-2 file:rounded-lg file:border-0 file:bg-slate-700 file:text-slate-200">
+                                        </div>
+                                        <template x-if="q.optionImages && q.optionImages[oIdx]">
+                                            <div class="flex items-center gap-2">
+                                                <img :src="q.optionImages[oIdx]" class="h-10 rounded border border-slate-700 object-contain">
+                                                <button @click="q.optionImages[oIdx] = ''" class="text-[10px] text-rose-400 hover:underline">Hapus</button>
+                                            </div>
+                                        </template>
+                                    </div>
+                                </template>
+                            </div>
+
+                            <!-- Correct Answer Key & Explanation -->
+                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-slate-800">
+                                <div>
+                                    <label class="block text-[11px] font-bold text-emerald-400 mb-1">Kunci Jawaban Benar</label>
+                                    <select x-model.number="q.correctAnswer" class="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-slate-100">
+                                        <template x-for="(opt, oIdx) in q.options" :key="oIdx">
+                                            <option :value="oIdx" x-text="'Pilihan ' + String.fromCharCode(65 + oIdx)"></option>
+                                        </template>
+                                    </select>
+                                </div>
+
+                                <div class="sm:col-span-2">
+                                    <label class="block text-[11px] font-bold text-slate-300 mb-1">Penjelasan / Pembahasan Singkat</label>
+                                    <input type="text" x-model="q.explanation" placeholder="Sebab kunci A benar..." class="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-slate-100">
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </div>
+
+            <div class="pt-4 border-t border-slate-700 flex justify-end gap-3">
+                <button @click="showEditorModal = false" class="px-4 py-2.5 text-xs text-slate-400">Batal</button>
+                <button @click="saveQuizFromEditor()" class="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-md">
+                    Simpan Seluruh Modul Ujian
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function quizApp() {
+            return {
+                role: 'student', // 'student' | 'admin'
+                activeView: 'quizzes', // 'quizzes' | 'runner' | 'rekap' | 'builder'
+                selectedCategory: 'ALL',
+                searchQuery: '',
+
+                // Admin Auth State
+                showAdminModal: false,
+                adminPinInput: '',
+                authError: false,
+
+                // Active Runner State (50s timer per question)
+                runnerStep: 'IDENTITY', // 'IDENTITY' | 'TESTING' | 'RESULT'
+                activeQuiz: null,
+                currentQuestionIndex: 0,
+                questionTimerSeconds: 50,
+                questionTimerInterval: null,
+                studentForm: {
+                    name: '',
+                    kabupaten: ''
+                },
+                userAnswers: {},
+                latestScore: 0,
+
+                // Admin Rekap State
+                searchRekap: '',
+                filterRekapCat: 'ALL',
+
+                // Admin Editor State
+                showEditorModal: false,
+                editingQuizId: null,
+                editForm: {
+                    title: '',
+                    category: 'TWK',
+                    description: '',
+                    youtubeUrl: '',
+                    questions: []
+                },
+
+                quizzes: [],
+                submissions: [],
+
+                initApp() {
+                    const savedQ = localStorage.getItem('ariiadinn_quizzes_v2');
+                    if (savedQ) {
+                        this.quizzes = JSON.parse(savedQ);
+                    } else {
+                        this.seedDefaultQuizzes();
+                    }
+
+                    const savedS = localStorage.getItem('ariiadinn_submissions_v2');
+                    if (savedS) {
+                        this.submissions = JSON.parse(savedS);
+                    } else {
+                        this.submissions = [
+                            {
+                                id: 'sub_1',
+                                studentName: 'Budi Santoso',
+                                kabupaten: 'Kota Kediri',
+                                quizTitle: 'TIU Figural Gambar & Penalaran (10 Soal)',
+                                category: 'TIU',
+                                score: 90,
+                                completedAt: '2026-09-28 11:20'
+                            }
+                        ];
+                        this.saveSubmissions();
+                    }
+
+                    this.refreshLucideIcons();
+                },
+
+                refreshLucideIcons() {
+                    this.$nextTick(() => {
+                        if (window.lucide) {
+                            lucide.createIcons();
+                        }
+                    });
+                },
+
+                saveQuizzes() {
+                    localStorage.setItem('ariiadinn_quizzes_v2', JSON.stringify(this.quizzes));
+                },
+
+                saveSubmissions() {
+                    localStorage.setItem('ariiadinn_submissions_v2', JSON.stringify(this.submissions));
+                },
+
+                getCategoryBadgeStyle(cat) {
+                    switch (cat) {
+                        case 'TWK': return 'bg-blue-500/20 text-blue-400 border-blue-500/30';
+                        case 'TIU': return 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30';
+                        case 'TKP': return 'bg-purple-500/20 text-purple-400 border-purple-500/30';
+                        default: return 'bg-slate-700 text-slate-300 border-slate-600';
+                    }
+                },
+
+                get filteredQuizzes() {
+                    return this.quizzes.filter(q => {
+                        const matchCat = this.selectedCategory === 'ALL' || q.category === this.selectedCategory;
+                        const matchQ = q.title.toLowerCase().includes(this.searchQuery.toLowerCase()) || 
+                                       q.description.toLowerCase().includes(this.searchQuery.toLowerCase());
+                        return matchCat && matchQ;
+                    });
+                },
+
+                get filteredSubmissions() {
+                    return this.submissions.filter(s => {
+                        const matchText = s.studentName.toLowerCase().includes(this.searchRekap.toLowerCase()) ||
+                                          s.kabupaten.toLowerCase().includes(this.searchRekap.toLowerCase());
+                        const matchCat = this.filterRekapCat === 'ALL' || s.category === this.filterRekapCat;
+                        return matchText && matchCat;
+                    });
+                },
+
+                get currentQuestion() {
+                    if (!this.activeQuiz || !this.activeQuiz.questions) return {};
+                    return this.activeQuiz.questions[this.currentQuestionIndex] || {};
+                },
+
+                getYoutubeEmbedUrl(url) {
+                    if (!url) return null;
+                    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+                    const match = url.match(regExp);
+                    return (match && match[2].length === 11) ? 'https://www.youtube.com/embed/' + match[2] : null;
+                },
+
+                openAdminModal() {
+                    this.adminPinInput = '';
+                    this.authError = false;
+                    this.showAdminModal = true;
+                    this.refreshLucideIcons();
+                },
+
+                authAdmin() {
+                    if (this.adminPinInput === 'admin123') {
+                        this.role = 'admin';
+                        this.showAdminModal = false;
+                        this.activeView = 'rekap';
+                        this.refreshLucideIcons();
+                    } else {
+                        this.authError = true;
+                    }
+                },
+
+                startQuiz(quiz) {
+                    this.activeQuiz = quiz;
+                    this.runnerStep = 'IDENTITY';
+                    this.studentForm = { name: '', kabupaten: '' };
+                    this.userAnswers = {};
+                    this.currentQuestionIndex = 0;
+                    this.activeView = 'runner';
+                    this.refreshLucideIcons();
+                },
+
+                startQuestionTimer() {
+                    this.runnerStep = 'TESTING';
+                    this.resetAndRunQuestionTimer();
+                    this.refreshLucideIcons();
+                },
+
+                resetAndRunQuestionTimer() {
+                    if (this.questionTimerInterval) clearInterval(this.questionTimerInterval);
+                    this.questionTimerSeconds = 50;
+
+                    this.questionTimerInterval = setInterval(() => {
+                        if (this.questionTimerSeconds > 0) {
+                            this.questionTimerSeconds--;
+                        } else {
+                            clearInterval(this.questionTimerInterval);
+                            if (this.currentQuestionIndex < this.activeQuiz.questions.length - 1) {
+                                this.nextQuestion();
+                            } else {
+                                this.finishQuizSession();
+                            }
+                        }
+                    }, 1000);
+                },
+
+                selectOption(optIdx) {
+                    this.userAnswers[this.currentQuestionIndex] = optIdx;
+                },
+
+                nextQuestion() {
+                    if (this.currentQuestionIndex < this.activeQuiz.questions.length - 1) {
+                        this.currentQuestionIndex++;
+                        this.resetAndRunQuestionTimer();
+                    }
+                },
+
+                finishQuizSession() {
+                    if (this.questionTimerInterval) clearInterval(this.questionTimerInterval);
+
+                    let totalCorrect = 0;
+                    const totalQ = this.activeQuiz.questions.length;
+
+                    this.activeQuiz.questions.forEach((q, idx) => {
+                        if (this.userAnswers[idx] !== undefined && this.userAnswers[idx] === q.correctAnswer) {
+                            totalCorrect++;
+                        }
+                    });
+
+                    this.latestScore = Math.round((totalCorrect / totalQ) * 100);
+
+                    const now = new Date();
+                    const dateStr = now.toISOString().slice(0, 10) + ' ' + now.toTimeString().slice(0, 5);
+
+                    const sub = {
+                        id: 'sub_' + Date.now(),
+                        studentName: this.studentForm.name,
+                        kabupaten: this.studentForm.kabupaten,
+                        quizTitle: this.activeQuiz.title,
+                        category: this.activeQuiz.category,
+                        score: this.latestScore,
+                        completedAt: dateStr
+                    };
+
+                    this.submissions.unshift(sub);
+                    this.saveSubmissions();
+
+                    this.runnerStep = 'RESULT';
+                    this.refreshLucideIcons();
+                },
+
+                exportCSV() {
+                    if (this.submissions.length === 0) return;
+
+                    let csv = "data:text/csv;charset=utf-8,";
+                    csv += "Nama Peserta,Asal Kabupaten/Kota,Kuis,Skor,Waktu Selesai\n";
+
+                    this.filteredSubmissions.forEach(s => {
+                        csv += `"${s.studentName}","${s.kabupaten}","${s.quizTitle}",${s.score},"${s.completedAt}"\n`;
+                    });
+
+                    const encoded = encodeURI(csv);
+                    const link = document.createElement("a");
+                    link.setAttribute("href", encoded);
+                    link.setAttribute("download", `Rekap_Nilai_ariiadinn_${new Date().toISOString().slice(0,10)}.csv`);
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                },
+
+                clearSubmissions() {
+                    this.submissions = [];
+                    this.saveSubmissions();
+                },
+
+                resetToDefaultQuizzes() {
+                    this.seedDefaultQuizzes();
+                    this.refreshLucideIcons();
+                },
+
+                // BUILDER & EDITOR LOGIC (WITH IMAGE UPLOAD SUPPORT)
+                openQuizEditor(quiz = null) {
+                    if (quiz) {
+                        this.editingQuizId = quiz.id;
+                        this.editForm = JSON.parse(JSON.stringify(quiz));
+                        // Ensure optionImages array exists
+                        this.editForm.questions.forEach(q => {
+                            if (!q.optionImages) q.optionImages = ['', '', '', '', ''];
+                        });
+                    } else {
+                        this.editingQuizId = null;
+                        this.editForm = {
+                            title: '',
+                            category: 'TIU',
+                            description: '',
+                            youtubeUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+                            questions: Array.from({ length: 10 }, (_, i) => ({
+                                text: `Soal Latihan Nomor ${i + 1}...`,
+                                image: '',
+                                options: ['Pilihan A', 'Pilihan B', 'Pilihan C', 'Pilihan D', 'Pilihan E'],
+                                optionImages: ['', '', '', '', ''],
+                                correctAnswer: 0,
+                                explanation: 'Penjelasan singkat kunci jawaban.'
+                            }))
+                        };
+                    }
+                    this.showEditorModal = true;
+                    this.refreshLucideIcons();
+                },
+
+                uploadQuestionImage(event, questionObj) {
+                    const file = event.target.files[0];
+                    if (!file) return;
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        questionObj.image = e.target.result;
+                    };
+                    reader.readAsDataURL(file);
+                },
+
+                uploadOptionImage(event, questionObj, optIdx) {
+                    const file = event.target.files[0];
+                    if (!file) return;
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        if (!questionObj.optionImages) questionObj.optionImages = ['', '', '', '', ''];
+                        questionObj.optionImages[optIdx] = e.target.result;
+                    };
+                    reader.readAsDataURL(file);
+                },
+
+                addQuestionToForm() {
+                    this.editForm.questions.push({
+                        text: `Soal Nomor ${this.editForm.questions.length + 1}...`,
+                        image: '',
+                        options: ['Pilihan A', 'Pilihan B', 'Pilihan C', 'Pilihan D', 'Pilihan E'],
+                        optionImages: ['', '', '', '', ''],
+                        correctAnswer: 0,
+                        explanation: 'Penjelasan...'
+                    });
+                },
+
+                removeQuestionFromForm(idx) {
+                    this.editForm.questions.splice(idx, 1);
+                },
+
+                saveQuizFromEditor() {
+                    if (!this.editForm.title) return;
+
+                    if (this.editingQuizId) {
+                        const idx = this.quizzes.findIndex(q => q.id === this.editingQuizId);
+                        if (idx !== -1) {
+                            this.quizzes[idx] = { ...this.editForm, id: this.editingQuizId };
+                        }
+                    } else {
+                        const newQ = {
+                            ...this.editForm,
+                            id: 'q_custom_' + Date.now()
+                        };
+                        this.quizzes.push(newQ);
+                    }
+
+                    this.saveQuizzes();
+                    this.showEditorModal = false;
+                    this.activeView = 'builder';
+                    this.refreshLucideIcons();
+                },
+
+                deleteQuiz(id) {
+                    this.quizzes = this.quizzes.filter(q => q.id !== id);
+                    this.saveQuizzes();
+                },
+
+                seedDefaultQuizzes() {
+                    // Sample SVG for Figural Questions
+                    const sampleSvgImage = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='300' height='120' viewBox='0 0 300 120' fill='none' stroke='%2338bdf8' stroke-width='3'><rect x='10' y='10' width='80' height='100' rx='8' fill='%230f172a'/><polygon points='50,20 80,90 20,90' fill='%2338bdf8'/><rect x='110' y='10' width='80' height='100' rx='8' fill='%230f172a'/><polygon points='150,90 180,20 120,20' fill='%23f59e0b'/><rect x='210' y='10' width='80' height='100' rx='8' fill='%230f172a'/><text x='238' y='70' fill='%23ef4444' font-size='48' font-weight='bold'>?</text></svg>";
+
+                    this.quizzes = [
+                        {
+                            id: 'q_tiu_figural',
+                            title: 'TIU Figural Gambar & Penalaran (10 Soal)',
+                            category: 'TIU',
+                            description: 'Latihan 10 soal Intelegensi Umum termasuk pola gambar (figural) dan spasial.',
+                            youtubeUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+                            questions: [
+                                {
+                                    text: 'Perhatikan urutan gambar berikut! Manakah pola gambar yang tepat untuk mengisi tanda tanya (?) selanjutnya?',
+                                    image: sampleSvgImage,
+                                    options: ['Pilihan A (Rotasi 180 Derajat)', 'Pilihan B (Rotasi 90 Derajat Searah Jarum Jam)', 'Pilihan C (Cermin Horizontal)', 'Pilihan D (Pola Garis Bertambah)', 'Pilihan E (Bentuk Tidak Berubah)'],
+                                    optionImages: ['', '', '', '', ''],
+                                    correctAnswer: 1,
+                                    explanation: 'Pola gambar berputar 90 derajat searah jarum jam secara konsisten pada setiap tahapan.'
+                                },
+                                {
+                                    text: 'Semua mahasiswa universitas X pandai berhitung. Sebagian mahasiswa universitas X hobi membaca.',
+                                    image: '',
+                                    options: ['A. Semua mahasiswa yang pandai berhitung hobi membaca', 'B. Sebagian mahasiswa yang hobi membaca tidak pandai berhitung', 'C. Sebagian mahasiswa universitas X yang pandai berhitung hobi membaca', 'D. Semua yang hobi membaca adalah mahasiswa universitas X', 'E. Tidak ada kesimpulan yang benar'],
+                                    optionImages: ['', '', '', '', ''],
+                                    correctAnswer: 2,
+                                    explanation: 'Silogisme: Sebagian mahasiswa universitas X yang hobi membaca tetap termasuk dalam kelompok mahasiswa yang pandai berhitung.'
+                                },
+                                {
+                                    text: 'Jika A = 5 dan B = 8, berapakah nilai dari 3A + 2B - 4?',
+                                    image: '',
+                                    options: ['A. 25', 'B. 27', 'C. 29', 'D. 31', 'E. 33'],
+                                    optionImages: ['', '', '', '', ''],
+                                    correctAnswer: 1,
+                                    explanation: '3(5) + 2(8) - 4 = 15 + 16 - 4 = 27.'
+                                },
+                                {
+                                    text: 'Suatu pekerjaan dapat diselesaikan oleh 6 orang dalam waktu 12 hari. Berapa hari pekerjaan selesai jika dikerjakan oleh 9 orang?',
+                                    image: '',
+                                    options: ['A. 6 hari', 'B. 8 hari', 'C. 9 hari', 'D. 10 hari', 'E. 11 hari'],
+                                    optionImages: ['', '', '', '', ''],
+                                    correctAnswer: 1,
+                                    explanation: 'Perbandingan berbalik nilai: (6 x 12) / 9 = 72 / 9 = 8 hari.'
+                                },
+                                {
+                                    text: 'Lanjutkan deret angka berikut: 3, 7, 15, 31, 63, ...',
+                                    image: '',
+                                    options: ['A. 95', 'B. 110', 'C. 127', 'D. 135', 'E. 142'],
+                                    optionImages: ['', '', '', '', ''],
+                                    correctAnswer: 2,
+                                    explanation: 'Pola deret: (n x 2) + 1. Maka 63 x 2 + 1 = 127.'
+                                },
+                                {
+                                    text: 'KANDANG : AYAM = ... : ...',
+                                    image: '',
+                                    options: ['A. SANGKAR : BURUNG', 'B. LAUT : IKAN', 'C. HUTAN : HARIMAU', 'D. KANTOR : PEGAWAI', 'E. SAWAH : PETANI'],
+                                    optionImages: ['', '', '', '', ''],
+                                    correctAnswer: 0,
+                                    explanation: 'Analogi tempat tinggal buatan spesifik bagi hewan ternak/peliharaan.'
+                                },
+                                {
+                                    text: 'Berapakah 25% dari 240?',
+                                    image: '',
+                                    options: ['A. 40', 'B. 50', 'C. 60', 'D. 70', 'E. 80'],
+                                    optionImages: ['', '', '', '', ''],
+                                    correctAnswer: 2,
+                                    explanation: '25/100 x 240 = 1/4 x 240 = 60.'
+                                },
+                                {
+                                    text: 'Rata-rata nilai matematika 4 siswa adalah 80. Jika ditambah nilai siswa kelima, rata-rata menjadi 82. Berapa nilai siswa kelima?',
+                                    image: '',
+                                    options: ['A. 85', 'B. 88', 'C. 90', 'D. 92', 'E. 95'],
+                                    optionImages: ['', '', '', '', ''],
+                                    correctAnswer: 2,
+                                    explanation: 'Nilai ke-5 = (5 x 82) - (4 x 80) = 410 - 320 = 90.'
+                                },
+                                {
+                                    text: 'Sebuah mobil melaju dengan kecepatan 60 km/jam selama 2 jam 30 menit. Jarak yang ditempuh adalah...',
+                                    image: '',
+                                    options: ['A. 120 km', 'B. 135 km', 'C. 150 km', 'D. 165 km', 'E. 180 km'],
+                                    optionImages: ['', '', '', '', ''],
+                                    correctAnswer: 2,
+                                    explanation: 'Jarak = K x W = 60 x 2.5 jam = 150 km.'
+                                },
+                                {
+                                    text: 'Antonim dari kata GERSANG adalah...',
+                                    image: '',
+                                    options: ['A. KERING', 'B. SUBUR', 'C. TANDUS', 'D. DINGIN', 'E. PANAS'],
+                                    optionImages: ['', '', '', '', ''],
+                                    correctAnswer: 1,
+                                    explanation: 'Lawan kata gersang (tidak subur) adalah subur.'
+                                }
+                            ]
+                        },
+                        {
+                            id: 'q_twk_10',
+                            title: 'TWK 1 - Pancasila & UUD 1945 (10 Soal)',
+                            category: 'TWK',
+                            description: '10 Soal Wawasan Kebangsaan dengan timer 50s per soal.',
+                            youtubeUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+                            questions: Array.from({ length: 10 }, (_, i) => ({
+                                text: `[Soal TWK ${i + 1}] Kedudukan UUD 1945 sebagai hukum dasar tertulis tertinggi di Indonesia berimplikasi bahwa...`,
+                                image: '',
+                                options: ['A. Semua UU tidak boleh bertentangan dengan UUD 1945', 'B. UUD 1945 tidak dapat diubah sama sekali', 'C. Presiden berwenang membatalkan UUD 1945', 'D. Perpu memiliki kedudukan lebih tinggi dari UUD 1945', 'E. DPR bertugas menyusun Pembukaan UUD 1945'],
+                                optionImages: ['', '', '', '', ''],
+                                correctAnswer: 0,
+                                explanation: 'Semua peraturan di bawah UUD 1945 tidak boleh bertentangan dengan UUD 1945.'
+                            }))
+                        },
+                        {
+                            id: 'q_tkp_10',
+                            title: 'TKP 1 - Pelayanan Publik & Integritas (10 Soal)',
+                            category: 'TKP',
+                            description: '10 Soal Karakter Kepribadian tentang pelayanan publik dan kerja sama tim.',
+                            youtubeUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+                            questions: Array.from({ length: 10 }, (_, i) => ({
+                                text: `[Soal TKP ${i + 1}] Saat Anda bertugas di kantor pelayan publik, terdapat masyarakat yang belum memahami prosedur berkas. Sikap Anda adalah...`,
+                                image: '',
+                                options: ['A. Menjelaskan dengan ramah dan memandu hingga selesai', 'B. Menyuruh membaca papan pengumuman sendiri', 'C. Meminta rekan kerja lain yang melayani', 'D. Membiarkan saja', 'E. Menutup loket lebih awal'],
+                                optionImages: ['', '', '', '', ''],
+                                correctAnswer: 0,
+                                explanation: 'Opsi A memiliki poin tertinggi (5) untuk indikator Orientasi pada Pelayanan.'
+                            }))
+                        }
+                    ];
+                    this.saveQuizzes();
+                }
+            }
+        }
+    </script>
+</body>
+</html>
